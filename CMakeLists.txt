@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 cmake_policy(SET CMP0111 OLD)
 
 set(VERSION 1.0.8)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(Beauty LANGUAGES CXX VERSION ${VERSION})
 
