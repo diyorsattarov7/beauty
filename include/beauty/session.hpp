@@ -85,7 +85,7 @@ public:
         //std::cout << "session: do read" << std::endl;
         // Make a new request_parser before reading
         _request_parser = std::make_unique<beast::http::request_parser<beast::http::string_body>>();
-        _request_parser->body_limit(1024 * 1024 * 1024); // 1Go..
+        _request_parser->body_limit(1024 * 1024); // 1MiB
 
         // Read a full request (only if on _stream/_socket)
         if constexpr(SSL) {
