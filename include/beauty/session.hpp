@@ -215,7 +215,9 @@ public:
             }
             else {
                 response->on_done([me = this->shared_from_this(), response] {
-                    me->do_write(response);
+                asio::post(me->_strand, [me, response] {
+                        me->do_write(response);
+                        });
                 });
             }
         }
