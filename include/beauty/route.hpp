@@ -7,6 +7,7 @@
 #include <beauty/websocket_handler.hpp>
 #include <beauty/export.hpp>
 
+#include <cstddef>
 #include <vector>
 #include <string>
 #include <functional>
@@ -48,6 +49,8 @@ public:
     [[nodiscard]] const std::vector<std::string>& segments() const noexcept { return _segments; }
     [[nodiscard]] const beauty::route_info& route_info() const noexcept { return _route_info; }
 
+    void body_limit(std::size_t limit) noexcept { _body_limit = limit; }
+    std::size_t body_limit() const noexcept { return _body_limit; }
 private:
     void extract_route_info();
     void update_route_info(const beauty::route_info& route_info);
@@ -55,6 +58,7 @@ private:
 private:
     std::string _path;
     std::vector<std::string> _segments;
+    std::size_t _body_limit{1024 * 1024};
 
     route_cb    _cb;
     bool        _is_websocket{false};

@@ -8,6 +8,7 @@
 #include <beauty/swagger.hpp>
 #include <beauty/export.hpp>
 
+#include <cstddef>
 #include <string>
 
 namespace beauty
@@ -32,9 +33,17 @@ public:
         server_route& put(const route_info& route_info, route_cb&& cb)
         {  _server.put(_path, route_info, std::move(cb)); return *this; }
 
-        server_route& post(route_cb&& cb) { _server.post(_path, std::move(cb)); return *this; };
-        server_route& post(const route_info& route_info, route_cb&& cb)
-        {  _server.post(_path, route_info, std::move(cb)); return *this; }
+        server_route& post(route_cb&& cb) {
+            _server.add_http_route(beast::http::verb::post, _path,
+                                   {}, std::move(cb), _body_limit);
+            return *this;
+        }
+
+        server_route& post(const route_info& route_info, route_cb&& cb) {
+            _server.add_http_route(beast::http::verb::post, _path,
+                                   route_info, std::move(cb), _body_limit);
+            return *this;
+        }
 
         server_route& patch(route_cb&& cb) { _server.patch(_path, std::move(cb)); return *this; };
         server_route& patch(const route_info& route_info, route_cb&& cb)
@@ -51,9 +60,16 @@ public:
         // Websocket
         server_route& ws(ws_handler&& handler) { _server.ws(_path, std::move(handler)); return *this;}
 
+        server_route& body_limit(std::size_t limit)
+        {
+            _body_limit = limit;
+            return *this;
+        }
+
     private:
         server& _server;
         std::string _path;
+        std::size_t _body_limit{1024 * 1024};
     };
 
 public:
@@ -125,6 +141,12 @@ private:
     beauty::endpoint        _empty_endpoint;
 
     beauty::server_info     _server_info;
+
+    void add_http_route(beast::http::verb verb,
+                    const std::string& path,
+                    const route_info& route_info,
+                    route_cb&& cb,
+                    std::size_t body_limit);
 };
 
 }

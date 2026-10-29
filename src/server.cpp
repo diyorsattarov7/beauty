@@ -290,4 +290,15 @@ server::enable_swagger(const char* swagger_entrypoint)
     });
 }
 
+void server::add_http_route(beast::http::verb verb,
+                            const std::string& path,
+                            const route_info& route_info,
+                            route_cb&& cb,
+                            std::size_t body_limit)
+{
+    beauty::route r(path, route_info, std::move(cb));
+    r.body_limit(body_limit);
+    _router.add_route(verb, std::move(r));
+}
+
 }

@@ -82,12 +82,87 @@ public:
 
     void do_read()
     {
-        //std::cout << "session: do read" << std::endl;
-        // Make a new request_parser before reading
-        _request_parser = std::make_unique<beast::http::request_parser<beast::http::string_body>>();
-        _request_parser->body_limit(1024 * 1024); // 1MiB
+        _request_parser = std::make_unique<
+            beast::http::request_parser<beast::http::string_body>>();
 
-        // Read a full request (only if on _stream/_socket)
+        _request_parser->body_limit(boost::none);
+
+        if constexpr(SSL) {
+            beast::http::async_read_header(_stream, _buffer, *_request_parser,
+                asio::bind_executor(
+                    _strand,
+                    [me = this->shared_from_this()](auto ec, auto bytes_transferred) {
+                        me->on_read_header(ec, bytes_transferred);
+                    }));
+        } else {
+            beast::http::async_read_header(_socket, _buffer, *_request_parser,
+                asio::bind_executor(
+                    _strand,
+                    [me = this->shared_from_this()](auto ec, auto bytes_transferred) {
+                        me->on_read_header(ec, bytes_transferred);
+                    }));
+        }
+    }
+
+    void on_read_header(boost::system::error_code ec,
+                    std::size_t /* bytes_transferred */)
+    {
+
+        if (ec == beast::http::error::body_limit) {
+            auto response = std::make_shared<beauty::response>(
+                    beast::http::status::payload_too_large,
+                    _request_parser->get().version());
+
+            response->set(beast::http::field::server, BEAUTY_PROJECT_VERSION);
+            response->set(beast::http::field::content_type, "text/plain");
+            response->keep_alive(false);
+            response->body() = "Payload Too Large";
+
+            return do_write(response);
+        }
+
+        if (ec == beast::http::error::end_of_stream)
+            return do_close();
+
+        if (ec)
+            return fail(ec, "read header");
+
+        const auto& header = _request_parser->get();
+        const bool is_websocket = beast::websocket::is_upgrade(header);
+
+        std::size_t limit = 1024 * 1024;
+
+        auto found_method = _router.find(header.method());
+
+        if (found_method != _router.end()) {
+            beauty::request request;
+            request.method(header.method());
+            request.target(header.target());
+
+            for (const auto& route : found_method->second) {
+                if (route.match(request, is_websocket)) {
+                    limit = route.body_limit();
+                    break;
+                }
+            }
+        }
+
+        _request_parser->body_limit(limit);
+
+        if (auto length = _request_parser->content_length();
+                length && *length > limit) {
+            auto response = std::make_shared<beauty::response>(
+                    beast::http::status::payload_too_large,
+                    header.version());
+
+            response->set(beast::http::field::server, BEAUTY_PROJECT_VERSION);
+            response->set(beast::http::field::content_type, "text/plain");
+            response->keep_alive(false);
+            response->body() = "Payload Too Large";
+
+            return do_write(response);
+        }
+
         if constexpr(SSL) {
             beast::http::async_read(_stream, _buffer, *_request_parser,
                 asio::bind_executor(
@@ -112,6 +187,19 @@ public:
         // This means they closed the connection
         if (ec == beast::http::error::end_of_stream) {
             return do_close();
+        }
+
+        if (ec == beast::http::error::body_limit) {
+            auto response = std::make_shared<beauty::response>(
+                    beast::http::status::payload_too_large,
+                    _request_parser->get().version());
+
+            response->set(beast::http::field::server, BEAUTY_PROJECT_VERSION);
+            response->set(beast::http::field::content_type, "text/plain");
+            response->keep_alive(false);
+            response->body() = "Payload Too Large";
+
+            return do_write(response);
         }
 
         if (ec) {
